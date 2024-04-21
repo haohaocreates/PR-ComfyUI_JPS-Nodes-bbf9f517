@@ -313,9 +313,11 @@ class SDXL_Basic_Settings:
                 "scheduler": (comfy.samplers.KSampler.SCHEDULERS,),
                 "steps_total": ("INT", {"default": 60, "min": 20, "max": 250, "step": 5}),
                 "base_percentage": ("INT", {"default": 80, "min": 5, "max": 100, "step": 5}),
-                "cfg_base": ("FLOAT", {"default": 6.5, "min": 1, "max": 20, "step": 0.1}),
+                "cfg": ("FLOAT", {"default": 6.5, "min": 1, "max": 20, "step": 0.1}),
+                "cfg_rescale": ("FLOAT", {"default": 0.00, "min": 0.00, "max": 1.00, "step": 0.05}),
                 "cfg_refiner": ("FLOAT", {"default": 6.5, "min": 0, "max": 20, "step": 0.1}),
                 "ascore_refiner": ("FLOAT", {"default": 6, "min": 1, "max": 10, "step": 0.5}),
+                "res_factor": ("INT", {"default": 4, "min": 1, "max": 8, "step": 1}),
                 "clip_skip": ("INT", {"default": -2, "min": -24, "max": -1}),
                 "filename": ("STRING", {"default": "JPS"}),
         }}
@@ -325,16 +327,18 @@ class SDXL_Basic_Settings:
 
     CATEGORY="JPS Nodes/Settings"
 
-    def get_values(self,resolution,sampler_name,scheduler,steps_total,base_percentage,cfg_base,cfg_refiner,ascore_refiner,clip_skip,filename):
+    def get_values(self,resolution,sampler_name,scheduler,steps_total,base_percentage,cfg,cfg_rescale,cfg_refiner,ascore_refiner,res_factor,clip_skip,filename):
         width = 1024
         height = 1024
         width = int(width)
         height = int(height)
         steps_total = int(steps_total)
         step_split = steps_total * base_percentage / 100
-        cfg_base = float(cfg_base)
+        cfg = float(cfg)
+        cfg_rescale = float(cfg_rescale)
         cfg_refiner = float (cfg_refiner)
         ascore_refiner = float (ascore_refiner)
+        res_factor = int (res_factor)
         base_percentage = int (base_percentage)
         image_res = 1
 
@@ -369,9 +373,9 @@ class SDXL_Basic_Settings:
             height = 1536
 
         if(cfg_refiner == 0):
-            cfg_refiner = cfg_base
+            cfg_refiner = cfg
         
-        sdxl_basic_settings = width, height, sampler_name, scheduler, steps_total, step_split, cfg_base, cfg_refiner, ascore_refiner, clip_skip, filename,image_res
+        sdxl_basic_settings = width, height, sampler_name, scheduler, steps_total, step_split, cfg, cfg_rescale, cfg_refiner, ascore_refiner, res_factor, clip_skip, filename,image_res
 
         return(sdxl_basic_settings,)
 
@@ -390,17 +394,108 @@ class SDXL_Basic_Settings_Pipe:
                 "sdxl_basic_settings": ("BASIC_PIPE",)
             },
         }
-    RETURN_TYPES = ("INT","INT","INT",comfy.samplers.KSampler.SAMPLERS,comfy.samplers.KSampler.SCHEDULERS,"INT","INT","FLOAT","FLOAT","FLOAT","INT","STRING",)
-    RETURN_NAMES = ("image_res","width","height","sampler_name","scheduler","steps_total","step_split","cfg_base","cfg_refiner","ascore_refiner","clip_skip","filename",)
+    RETURN_TYPES = ("INT","INT","INT",comfy.samplers.KSampler.SAMPLERS,comfy.samplers.KSampler.SCHEDULERS,"INT","INT","FLOAT","FLOAT","FLOAT","FLOAT","INT","INT","STRING",)
+    RETURN_NAMES = ("image_res","width","height","sampler_name","scheduler","steps_total","step_split","cfg","cfg_rescale","cfg_refiner","ascore_refiner","res_factor","clip_skip","filename",)
     FUNCTION = "give_values"
 
     CATEGORY="JPS Nodes/Pipes"
 
     def give_values(self,sdxl_basic_settings):
         
-        width, height, sampler_name, scheduler, steps_total, step_split, cfg_base, cfg_refiner, ascore_refiner, clip_skip, filename,image_res = sdxl_basic_settings
+        width, height, sampler_name, scheduler, steps_total, step_split, cfg, cfg_rescale, cfg_refiner, ascore_refiner, res_factor, clip_skip, filename,image_res = sdxl_basic_settings
 
-        return(int(image_res), int(width), int(height), sampler_name, scheduler, int(steps_total), int(step_split), float(cfg_base), float(cfg_refiner), float(ascore_refiner), int(clip_skip), str(filename),)
+        return(int(image_res), int(width), int(height), sampler_name, scheduler, int(steps_total), int(step_split), float(cfg), float(cfg_rescale), float(cfg_refiner), float(ascore_refiner), int (res_factor), int(clip_skip), str(filename),)
+
+#---------------------------------------------------------------------------------------------------------------------------------------------------#
+
+class SDXL_Settings:
+    resolution = ["Use Image Resolution", "square - 1024x1024 (1:1)","landscape - 1152x896 (4:3)","landscape - 1216x832 (3:2)","landscape - 1344x768 (16:9)","landscape - 1536x640 (21:9)", "portrait - 896x1152 (3:4)","portrait - 832x1216 (2:3)","portrait - 768x1344 (9:16)","portrait - 640x1536 (9:21)"]
+
+    def __init__(self):
+        pass
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "resolution": (s.resolution,),
+                "res_factor": ("INT", {"default": 4, "min": 1, "max": 8, "step": 1}),
+                "sampler_name": (comfy.samplers.KSampler.SAMPLERS,),
+                "scheduler": (comfy.samplers.KSampler.SCHEDULERS,),
+                "steps": ("INT", {"default": 60, "min": 20, "max": 250, "step": 5}),
+                "cfg": ("FLOAT", {"default": 6.5, "min": 1, "max": 20, "step": 0.1}),
+                "cfg_rescale": ("FLOAT", {"default": 0.00, "min": 0.00, "max": 1.00, "step": 0.05}),
+                "clip_skip": ("INT", {"default": -2, "min": -24, "max": -1}),
+                "filename": ("STRING", {"default": "JPS"}),
+        }}
+    RETURN_TYPES = ("BASIC_PIPE",)
+    RETURN_NAMES = ("sdxl_settings",)
+    FUNCTION = "get_values"
+
+    CATEGORY="JPS Nodes/Settings"
+
+    def get_values(self,resolution,res_factor,sampler_name,scheduler,steps,cfg,cfg_rescale,clip_skip,filename):
+
+        image_res = 1
+        if(resolution == "Use Image Resolution"):
+            image_res = 2
+
+        width = 1024
+        height = 1024
+        if(resolution == "landscape - 1152x896 (4:3)"):
+            width = 1152
+            height = 896
+        if(resolution == "landscape - 1216x832 (3:2)"):
+            width = 1216
+            height = 832
+        if(resolution == "landscape - 1344x768 (16:9)"):
+            width = 1344
+            height = 768
+        if(resolution == "landscape - 1536x640 (21:9)"):
+            width = 1536
+            height = 640
+        if(resolution == "portrait - 896x1152 (3:4)"):
+            width = 896
+            height = 1152
+        if(resolution == "portrait - 832x1216 (2:3)"):
+            width = 832
+            height = 1216
+        if(resolution == "portrait - 768x1344 (9:16)"):
+            width = 768
+            height = 1344
+        if(resolution == "portrait - 640x1536 (9:21)"):
+            width = 640
+            height = 1536
+
+        sdxl_settings = width, height, res_factor, sampler_name, scheduler, steps, cfg, cfg_rescale, clip_skip, filename,image_res
+
+        return(sdxl_settings,)
+
+#---------------------------------------------------------------------------------------------------------------------------------------------------#
+
+class SDXL_Settings_Pipe:
+
+    def __init__(self):
+        pass
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "sdxl_settings": ("BASIC_PIPE",)
+            },
+        }
+    RETURN_TYPES = ("INT","INT","INT","INT",comfy.samplers.KSampler.SAMPLERS,comfy.samplers.KSampler.SCHEDULERS,"INT","FLOAT","FLOAT","INT","STRING",)
+    RETURN_NAMES = ("image_res","width","height","res_factor","sampler_name","scheduler","steps","cfg","cfg_rescale","clip_skip","filename",)
+    FUNCTION = "give_values"
+
+    CATEGORY="JPS Nodes/Pipes"
+
+    def give_values(self,sdxl_settings):
+        
+        width, height, res_factor, sampler_name, scheduler, steps, cfg, cfg_rescale, clip_skip, filename,image_res = sdxl_settings
+
+        return(int(image_res), int(width), int(height), int (res_factor), sampler_name, scheduler, int(steps), float(cfg), float(cfg_rescale), int(clip_skip), str(filename),)
 
 #---------------------------------------------------------------------------------------------------------------------------------------------------#
 
@@ -415,8 +510,8 @@ class SDXL_Prompt_Handling_Plus:
         return {
             "required": {
                 "handling": (s.handling,),
-                "pos_g": ("STRING", {"multiline": True, "placeholder": "Prompt Text pos_g"}),
-                "pos_l": ("STRING", {"multiline": True, "placeholder": "Prompt Text pos_l"}),
+                "pos_g": ("STRING", {"multiline": True, "placeholder": "Prompt Text pos_g", "dynamicPrompts": True}),
+                "pos_l": ("STRING", {"multiline": True, "placeholder": "Prompt Text pos_l", "dynamicPrompts": True}),
             },
         }
     
@@ -461,7 +556,7 @@ class Text_Prompt:
     def INPUT_TYPES(s):
         return {
             "required": {
-                "text": ("STRING", {"multiline": True, "placeholder": "Prompt Text"}),
+                "text": ("STRING", {"multiline": True, "placeholder": "Prompt Text", "dynamicPrompts": True}),
             },
         }
     
@@ -474,6 +569,32 @@ class Text_Prompt:
     def text_prompt(self,text):
 
         return(text,)
+
+#---------------------------------------------------------------------------------------------------------------------------------------------------#
+
+class Text_Prompt_Combo:
+
+    def __init__(self):
+        pass
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "pos": ("STRING", {"multiline": True, "placeholder": "Prompt Text Positive", "dynamicPrompts": True}),
+                "neg": ("STRING", {"multiline": True, "placeholder": "Prompt Text Negative", "dynamicPrompts": True}),
+            },
+        }
+    
+    RETURN_TYPES = ("STRING","STRING",)
+    RETURN_NAMES = ("pos","neg",)
+    FUNCTION = "give_values"
+
+    CATEGORY="JPS Nodes/Text"
+
+    def give_values(self,pos,neg):
+        
+        return(pos,neg,)
 
 #---------------------------------------------------------------------------------------------------------------------------------------------------#
 
@@ -793,6 +914,43 @@ class Get_Date_Time_String:
         now = datetime.now()
         timestamp = now.strftime(style)
         return (timestamp,)
+
+#---------------------------------------------------------------------------------------------------------------------------------------------------#
+
+class Time_Seed:
+#    time_format = ["%Y%m%d%H%M%S","%Y%m%d%H%M","%Y%m%d","%Y-%m-%d-%H_%M_%S","%Y-%m-%d-%H_%M","%Y-%m-%d","%Y-%m-%d %H_%M_%S","%Y-%m-%d %H_%M","%Y-%m-%d","%H%M","%H%M%S","%H_%M","%H_%M_%S"]
+    def __init__(self):
+        pass
+    
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "fixed_seed": ("INT", {"default": 0, "min": 0, "max": 99999999999, "step": 1}),
+            }
+        }
+    
+    RETURN_TYPES = ("INT",)
+    RETURN_NAMES = ("seed",)
+    FUNCTION = "get_seed"
+
+    CATEGORY = "JPS Nodes/Text"
+
+    def get_seed(self, fixed_seed):
+        now = datetime.now()
+        time = now.strftime("%Y%m%d%H%M%S")
+        seed_out = int(time) + np.random.randint(999999)
+        if fixed_seed != 0:
+            seed_out=fixed_seed
+
+        return (int(seed_out),)
+
+    @classmethod
+    def IS_CHANGED(s, seed_out):
+        now = datetime.now()
+        forceupdate = now.strftime("%Y%m%d%H%M%S")
+        forceupdate = forceupdate + np.random.randint(99999999) + seed_out
+        return (forceupdate,)
 
 #---------------------------------------------------------------------------------------------------------------------------------------------------#
 
@@ -1269,155 +1427,8 @@ class CtrlNet_ZoeDepth_Pipe:
         return(zoe_source, zoe_strength, zoe_start, zoe_end,)
 
 #---------------------------------------------------------------------------------------------------------------------------------------------------#
-
-class IP_Adapter_Settings:
-    ipaweight = ["Use IP Adapter #1 weight for all","Use separate IP Adapter weights"]
-    ipawtype = ["Use IP Adapter #1 wtype for all","Use separate IP Adapter wtypes"]
-    ipanoise = ["Use IP Adapter #1 noise for all","Use separate IP Adapter noises"]
-    ipamasktype = ["No Mask","Mask Editor","Mask Editor (inverted)","Red from Image","Green from Image","Blue from Image"]    
-
-    def __init__(self):
-        pass
-
-    @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "ipa_weight": (s.ipaweight,),
-                "ipa_wtype": (s.ipawtype,),
-                "ipa_noise": (s.ipanoise,),
-
-                "ipa1_weight": ("FLOAT", {"default": 0.5, "min": 0, "max": 3, "step": 0.01}),
-                "ipa1_wtype": (["original", "linear", "channel penalty"],),
-                "ipa1_noise": ("FLOAT", {"default": 0.0, "min": 0, "max": 1, "step": 0.05}),
-                "ipa1_start": ("FLOAT", {"default": 0.00, "min": 0, "max": 1, "step": 0.05}),
-                "ipa1_stop": ("FLOAT", {"default": 1.00, "min": 0, "max": 1, "step": 0.05}),
-                "ipa1_crop": (["center","top", "bottom", "left", "right"],),
-                "ipa1_offset": ("INT", { "default": 0, "min": -4096, "max": 4096, "step": 1, "display": "number" }),
-                "ipa1_mask": (s.ipamasktype,),
-
-                "ipa2_weight": ("FLOAT", {"default": 0.5, "min": 0, "max": 3, "step": 0.01}),
-                "ipa2_wtype": (["original", "linear", "channel penalty"],),
-                "ipa2_noise": ("FLOAT", {"default": 0.0, "min": 0, "max": 1, "step": 0.05}),
-                "ipa2_start": ("FLOAT", {"default": 0.00, "min": 0, "max": 1, "step": 0.05}),
-                "ipa2_stop": ("FLOAT", {"default": 1.00, "min": 0, "max": 1, "step": 0.05}),
-                "ipa2_crop": (["center","top", "bottom", "left", "right"],),
-                "ipa2_offset": ("INT", { "default": 0, "min": -4096, "max": 4096, "step": 1, "display": "number" }),
-                "ipa2_mask": (s.ipamasktype,),
-
-
-                "ipa3_weight": ("FLOAT", {"default": 0.5, "min": 0, "max": 3, "step": 0.01}),
-                "ipa3_wtype": (["original", "linear", "channel penalty"],),
-                "ipa3_noise": ("FLOAT", {"default": 0.0, "min": 0, "max": 1, "step": 0.05}),
-                "ipa3_start": ("FLOAT", {"default": 0.00, "min": 0, "max": 1, "step": 0.05}),
-                "ipa3_stop": ("FLOAT", {"default": 1.00, "min": 0, "max": 1, "step": 0.05}),
-                "ipa3_crop": (["center","top", "bottom", "left", "right"],),
-                "ipa3_offset": ("INT", { "default": 0, "min": -4096, "max": 4096, "step": 1, "display": "number" }),
-                "ipa3_mask": (s.ipamasktype,),
-
-
-                "ipa4_weight": ("FLOAT", {"default": 0.5, "min": 0, "max": 3, "step": 0.01}),
-                "ipa4_wtype": (["original", "linear", "channel penalty"],),
-                "ipa4_noise": ("FLOAT", {"default": 0.0, "min": 0, "max": 1, "step": 0.05}),
-                "ipa4_start": ("FLOAT", {"default": 0.00, "min": 0, "max": 1, "step": 0.05}),
-                "ipa4_stop": ("FLOAT", {"default": 1.00, "min": 0, "max": 1, "step": 0.05}),
-                "ipa4_crop": (["center","top", "bottom", "left", "right"],),
-                "ipa4_offset": ("INT", { "default": 0, "min": -4096, "max": 4096, "step": 1, "display": "number" }),
-                "ipa4_mask": (s.ipamasktype,),
-
-                "crop_intpol": (["lanczos", "nearest", "bilinear", "bicubic", "area", "nearest-exact"],),
-                "crop_res": ("INT", { "default": 224 , "min": 224, "max": 1792, "step": 224, "display": "number" }),
-            }
-        }
-    RETURN_TYPES = ("BASIC_PIPE",)
-    RETURN_NAMES = ("ip_adapter_settings",)
-    FUNCTION = "get_ipamode"
-
-    CATEGORY="JPS Nodes/Settings"
-
-    def get_ipamode(self,crop_res,crop_intpol,ipa1_crop,ipa1_offset,ipa2_crop,ipa2_offset,ipa3_crop,ipa3_offset,ipa4_crop,ipa4_offset,ipa_weight,ipa_wtype,ipa1_weight,ipa1_wtype,ipa2_weight,ipa2_wtype,ipa3_weight,ipa3_wtype,ipa4_weight,ipa4_wtype,ipa_noise,ipa1_noise,ipa2_noise,ipa3_noise,ipa4_noise,ipa1_start,ipa1_stop,ipa2_start,ipa2_stop,ipa3_start,ipa3_stop,ipa4_start,ipa4_stop,ipa1_mask,ipa2_mask,ipa3_mask,ipa4_mask):
-        if(ipa_weight == "Use IP Adapter #1 weight for all"):
-            ipa2_weight = ipa1_weight
-            ipa3_weight = ipa1_weight
-            ipa4_weight = ipa1_weight
-        if(ipa_wtype == "Use IP Adapter #1 wtype for all"):
-            ipa2_wtype = ipa1_wtype
-            ipa3_wtype = ipa1_wtype
-            ipa4_wtype = ipa1_wtype
-        if(ipa_noise == "Use IP Adapter #1 noise for all"):
-            ipa2_noise = ipa1_noise
-            ipa3_noise = ipa1_noise
-            ipa4_noise = ipa1_noise
-
-        ipa1mask = int(0)
-        if(ipa1_mask == "Mask Editor"):
-            ipa1mask = int(1)
-        elif(ipa1_mask == "Mask Editor (inverted)"):
-            ipa1mask = int(2)
-        elif(ipa1_mask == "Red from Image"):
-            ipa1mask = int(3)
-        elif(ipa1_mask == "Green from Image"):
-            ipa1mask = int(4)
-        elif(ipa1_mask == "Blue from Image"):
-            ipa1mask = int(5)
-
-        ipa2mask = int(0)
-        if(ipa2_mask == "Mask Editor"):
-            ipa2mask = int(1)
-        elif(ipa2_mask == "Mask Editor (inverted)"):
-            ipa2mask = int(2)
-        elif(ipa2_mask == "Red from Image"):
-            ipa2mask = int(3)
-        elif(ipa2_mask == "Green from Image"):
-            ipa2mask = int(4)
-        elif(ipa2_mask == "Blue from Image"):
-            ipa2mask = int(5)
-
-        ipa3mask = int(0)
-        if(ipa3_mask == "Mask Editor"):
-            ipa3mask = int(1)
-        elif(ipa3_mask == "Mask Editor (inverted)"):
-            ipa3mask = int(2)
-        elif(ipa3_mask == "Red from Image"):
-            ipa3mask = int(3)
-        elif(ipa3_mask == "Green from Image"):
-            ipa3mask = int(4)
-        elif(ipa3_mask == "Blue from Image"):
-            ipa3mask = int(5)
-
-        ipa4mask = int(0)
-        if(ipa4_mask == "Mask Editor"):
-            ipa4mask = int(1)
-        elif(ipa4_mask == "Mask Editor (inverted)"):
-            ipa4mask = int(2)
-        elif(ipa4_mask == "Red from Image"):
-            ipa4mask = int(3)
-        elif(ipa4_mask == "Green from Image"):
-            ipa4mask = int(4)
-        elif(ipa4_mask == "Blue from Image"):
-            ipa4mask = int(5)
-
-        ipa1weight = ipa1_weight
-        ipa1wtype = ipa1_wtype
-        ipa1noise = ipa1_noise
-        ipa2weight = ipa2_weight
-        ipa2wtype = ipa2_wtype        
-        ipa2noise = ipa2_noise
-        ipa3weight = ipa3_weight
-        ipa3wtype = ipa3_wtype
-        ipa3noise = ipa3_noise
-        ipa4weight = ipa4_weight
-        ipa4wtype = ipa4_wtype
-        ipa4noise = ipa4_noise
-
-
-        ip_adapter_settings = crop_res,crop_intpol,ipa1_crop,ipa1_offset,ipa2_crop,ipa2_offset,ipa3_crop,ipa3_offset,ipa4_crop,ipa4_offset,ipa1weight,ipa1wtype,ipa2weight,ipa2wtype,ipa3weight,ipa3wtype,ipa4weight,ipa4wtype,ipa1noise,ipa2noise,ipa3noise,ipa4noise,ipa1_start,ipa1_stop,ipa2_start,ipa2_stop,ipa3_start,ipa3_stop,ipa4_start,ipa4_stop,ipa1mask,ipa2mask,ipa3mask,ipa4mask
-
-        return(ip_adapter_settings,)
-
-#---------------------------------------------------------------------------------------------------------------------------------------------------#
     
-class IP_Adapter_Single_Settings:
+class IP_Adapter_Settings:
     ipamasktype = ["No Mask","Mask Editor","Mask Editor (inverted)","Red from Image","Green from Image","Blue from Image"]    
 
     def __init__(self):
@@ -1428,7 +1439,7 @@ class IP_Adapter_Single_Settings:
         return {
             "required": {
                 "ipa_weight": ("FLOAT", {"default": 0.5, "min": 0, "max": 3, "step": 0.01}),
-                "ipa_wtype": (["original", "linear", "channel penalty"],),
+                "ipa_wtype": (["linear", "ease in", "ease out", "ease in-out", "reverse in-out", "weak input", "weak output", "weak middle", "strong middle"],),
                 "ipa_noise": ("FLOAT", {"default": 0.0, "min": 0, "max": 1, "step": 0.05}),
                 "ipa_start": ("FLOAT", {"default": 0.00, "min": 0, "max": 1, "step": 0.05}),
                 "ipa_stop": ("FLOAT", {"default": 1.00, "min": 0, "max": 1, "step": 0.05}),
@@ -1499,21 +1510,90 @@ class IP_Adapter_Settings_Pipe:
                 "ip_adapter_settings": ("BASIC_PIPE",),
             }
         }
-    RETURN_TYPES = ("INT",["lanczos", "nearest", "bilinear", "bicubic", "area", "nearest-exact"],["center","top", "bottom", "left", "right"],"INT",["center","top", "bottom", "left", "right"],"INT",["center","top", "bottom", "left", "right"],"INT",["center","top", "bottom", "left", "right"],"INT","FLOAT",["original", "linear", "channel penalty"],"FLOAT",["original", "linear", "channel penalty"],"FLOAT",["original", "linear", "channel penalty"],"FLOAT",["original", "linear", "channel penalty"],"FLOAT","FLOAT","FLOAT","FLOAT","FLOAT","FLOAT","FLOAT","FLOAT","FLOAT","FLOAT","FLOAT","FLOAT","INT","INT","INT","INT")
-    RETURN_NAMES = ("crop_res", "crop_intpol", "ipa1_crop", "ipa1_offset", "ipa2_crop", "ipa2_offset", "ipa3_crop", "ipa3_offset", "ipa4_crop", "ipa4_offset", "ipa1_weight", "ipa1_wtype", "ipa2_weight", "ipa2_wtype", "ipa3_weight", "ipa3_wtype", "ipa4_weight", "ipa4_wtype", "ipa1_noise", "ipa2_noise", "ipa3_noise", "ipa4_noise", "ipa1_start", "ipa1_stop", "ipa2_start", "ipa2_stop", "ipa3_start", "ipa3_stop", "ipa4_start", "ipa4_stop","ipa1_mask","ipa2_mask","ipa3_mask","ipa4_mask")
-    FUNCTION = "get_ipamode"
+    RETURN_TYPES = ("FLOAT",["linear", "ease in", "ease out", "ease in-out", "reverse in-out", "weak input", "weak output", "weak middle", "strong middle"],"FLOAT","FLOAT","FLOAT",["center","top", "bottom", "left", "right"],"FLOAT","INT","INT","INT",["lanczos", "nearest", "bilinear", "bicubic", "area", "nearest-exact"],"FLOAT","INT")
+    RETURN_NAMES = ("ipa_weight","ipa_wtype","ipa_noise","ipa_start","ipa_stop","ipa_crop","ipa_zoom","ipa_offset_x","ipa_offset_y","ipa_mask","crop_intpol","sharpening","ipa_model")
+    FUNCTION = "get_ipamode_single"
 
     CATEGORY="JPS Nodes/Pipes"
 
-    def get_ipamode(self,ip_adapter_settings):
+    def get_ipamode_single(self,ip_adapter_settings):
 
-        crop_res,crop_intpol,ipa1_crop,ipa1_offset,ipa2_crop,ipa2_offset,ipa3_crop,ipa3_offset,ipa4_crop,ipa4_offset,ipa1weight,ipa1wtype,ipa2weight,ipa2wtype,ipa3weight,ipa3wtype,ipa4weight,ipa4wtype,ipa1noise,ipa2noise,ipa3noise,ipa4noise,ipa1_start,ipa1_stop,ipa2_start,ipa2_stop,ipa3_start,ipa3_stop,ipa4_start,ipa4_stop,ipa1mask,ipa2mask,ipa3mask,ipa4mask = ip_adapter_settings
+        ipaweight,ipawtype,ipanoise,ipastart,ipastop,ipacrop,ipazoom,ipaoffsetx,ipaoffsety,ipamask,cropintpol,sharpening,ipamodel = ip_adapter_settings
 
-        return(int(crop_res),crop_intpol,ipa1_crop,int(ipa1_offset),ipa2_crop,int(ipa2_offset),ipa3_crop,int(ipa3_offset),ipa4_crop,int(ipa4_offset),float(ipa1weight),ipa1wtype,float(ipa2weight),ipa2wtype,float(ipa3weight),ipa3wtype,float(ipa4weight),ipa4wtype,float(ipa1noise),float(ipa2noise),float(ipa3noise),float(ipa4noise),float(ipa1_start),float(ipa1_stop),float(ipa2_start),float(ipa2_stop),float(ipa3_start),float(ipa3_stop),float(ipa4_start),float(ipa4_stop),int(ipa1mask),int(ipa2mask),int(ipa3mask),int(ipa4mask),)
+        return(float(ipaweight),ipawtype,float(ipanoise),float(ipastart),float(ipastop),ipacrop,float(ipazoom),int(ipaoffsetx),int(ipaoffsety),int(ipamask),cropintpol,float(sharpening),int(ipamodel),)
+
+#---------------------------------------------------------------------------------------------------------------------------------------------------#
+    
+class IP_Adapter_Tiled_Settings:
+    
+    preparetypes = ["Target AR + Target Res", "Target AR + Tile Res", "Tile AR + Target Res", "Source AR + Source Res", "Source AR + Tile Res", "Tile AR + Source Res", "Square AR + Target Res", "Square AR + Tile Res", "Direct Source" ]
+    
+    def __init__(self):
+        pass
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "ipa_model": (["SDXL ViT-H", "SDXL Plus ViT-H", "SDXL Plus Face ViT-H"],),
+                "ipa_wtype": (["linear", "ease in", "ease out", "ease in-out", "reverse in-out", "weak input", "weak output", "weak middle", "strong middle"],),
+                "ipa_weight": ("FLOAT", {"default": 0.5, "min": 0, "max": 3, "step": 0.01}),
+                "ipa_noise": ("FLOAT", {"default": 0.0, "min": 0, "max": 1, "step": 0.05}),
+                "ipa_start": ("FLOAT", {"default": 0.00, "min": 0, "max": 1, "step": 0.05}),
+                "ipa_end": ("FLOAT", {"default": 1.00, "min": 0, "max": 1, "step": 0.05}),
+                "tile_short": ("INT", { "default": 2, "min": 1, "max": 5, "step": 1, "display": "number" }),
+                "tile_weight": ("FLOAT", {"default": 0.55, "min": 0, "max": 1, "step": 0.05}),
+                "zoom": ("INT", {"default": 100, "min": 1, "max": 500, "step": 1}),
+                "offset_w": ("INT", { "default": 0, "min": -4096, "max": 4096, "step": 1, "display": "number" }),
+                "offset_h": ("INT", { "default": 0, "min": -4096, "max": 4096, "step": 1, "display": "number" }),
+                "prepare_type": (s.preparetypes,),
+                "prepare_intpol": (["lanczos", "nearest", "bilinear", "bicubic", "area", "nearest-exact"],),
+                "prepare_sharpening": ("FLOAT", { "default": 0.0, "min": 0, "max": 1, "step": 0.05, "display": "number" }),
+            }
+        }
+    RETURN_TYPES = ("BASIC_PIPE",)
+    RETURN_NAMES = ("ip_adapter_tiled_settings",)
+    FUNCTION = "get_ipatiled"
+
+    CATEGORY="JPS Nodes/Settings"
+
+    def get_ipatiled(self,ipa_model,ipa_wtype,ipa_weight,ipa_noise,ipa_start,ipa_end,tile_short,tile_weight,zoom,offset_w,offset_h,prepare_type,prepare_intpol,prepare_sharpening,):
+
+        ipamodel = int (0)
+        if(ipa_model == "SDXL ViT-H"):
+            ipamodel = int(1)
+        elif(ipa_model == "SDXL Plus ViT-H"):
+            ipamodel = int(2)
+        elif(ipa_model == "SDXL Plus Face ViT-H"):
+            ipamodel = int(3)
+
+        preparetype = int (0)
+        if(prepare_type == "Target AR + Target Res"):
+            preparetype = int(1)
+        elif(prepare_type == "Target AR + Tile Res"):
+            preparetype = int(2)
+        elif(prepare_type == "Tile AR + Target Res"):
+            preparetype = int(3)
+        elif(prepare_type == "Source AR + Source Res"):
+            preparetype = int(4)
+        elif(prepare_type == "Source AR + Tile Res"):
+            preparetype = int(5)
+        elif(prepare_type == "Tile AR + Source Res"):
+            preparetype = int(6)
+        elif(prepare_type == "Square AR + Target Res"):
+            preparetype = int(7)
+        elif(prepare_type == "Square AR + Tile Res"):
+            preparetype = int(8)
+        elif(prepare_type == "Direct Source"):
+            preparetype = int(9)
+        
+        ip_adapter_settings = ipamodel,ipa_wtype,ipa_weight,ipa_noise,ipa_start,ipa_end,tile_short,tile_weight,zoom,offset_w,offset_h,preparetype,prepare_intpol,prepare_sharpening
+
+        return(ip_adapter_settings,)
 
 #---------------------------------------------------------------------------------------------------------------------------------------------------#    
 
-class IP_Adapter_Single_Settings_Pipe:
+class IP_Adapter_Tiled_Settings_Pipe:
 
     def __init__(self):
         pass
@@ -1525,17 +1605,370 @@ class IP_Adapter_Single_Settings_Pipe:
                 "ip_adapter_settings": ("BASIC_PIPE",),
             }
         }
-    RETURN_TYPES = ("FLOAT",["original", "linear", "channel penalty"],"FLOAT","FLOAT","FLOAT",["center","top", "bottom", "left", "right"],"FLOAT","INT","INT","INT",["lanczos", "nearest", "bilinear", "bicubic", "area", "nearest-exact"],"FLOAT","INT")
-    RETURN_NAMES = ("ipa_weight","ipa_wtype","ipa_noise","ipa_start","ipa_stop","ipa_crop","ipa_zoom","ipa_offset_x","ipa_offset_y","ipa_mask","crop_intpol","sharpening","ipa_model")
-    FUNCTION = "get_ipamode_single"
+    RETURN_TYPES = ("INT",["linear", "ease in", "ease out", "ease in-out", "reverse in-out", "weak input", "weak output", "weak middle", "strong middle"],"FLOAT","FLOAT","FLOAT","FLOAT","INT","FLOAT","INT","INT","INT","INT",["lanczos", "nearest", "bilinear", "bicubic", "area", "nearest-exact"],"FLOAT")
+    RETURN_NAMES = ("ipa_model","ipa_wtype","ipa_weight","ipa_noise","ipa_start","ipa_end","tile_short","tile_weight","zoom","offset_w","offset_h","prepare_type","prepare_intpol","prepare_sharpening")
+    FUNCTION = "get_ipatiled"
 
     CATEGORY="JPS Nodes/Pipes"
 
-    def get_ipamode_single(self,ip_adapter_settings):
+    def get_ipatiled(self,ip_adapter_settings):
 
-        ipaweight,ipawtype,ipanoise,ipastart,ipastop,ipacrop,ipazoom,ipaoffsetx,ipaoffsety,ipamask,cropintpol,sharpening,ipamodel = ip_adapter_settings
+        ipamodel,ipa_wtype,ipa_weight,ipa_noise,ipa_start,ipa_end,tile_short,tile_weight,zoom,offset_w,offset_h,preparetype,prepare_intpol,prepare_sharpening = ip_adapter_settings
 
-        return(float(ipaweight),ipawtype,float(ipanoise),float(ipastart),float(ipastop),ipacrop,float(ipazoom),int(ipaoffsetx),int(ipaoffsety),int(ipamask),cropintpol,float(sharpening),int(ipamodel),)
+        return(ipamodel,ipa_wtype,ipa_weight,ipa_noise,ipa_start,ipa_end,tile_short,tile_weight,zoom,offset_w,offset_h,preparetype,prepare_intpol,prepare_sharpening)
+
+#---------------------------------------------------------------------------------------------------------------------------------------------------#
+    
+class InstantID_Settings:
+
+    ipamasktype = ["No Mask","Mask Editor","Mask Editor (inverted)","Red from Image","Green from Image","Blue from Image"]        
+    
+    def __init__(self):
+        pass
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "ip_weight": ("FLOAT", {"default": 0.8, "min": 0, "max": 1, "step": 0.01}),
+                "cn_strength": ("FLOAT", {"default": 0.65, "min": 0, "max": 10, "step": 0.01}),
+                "noise": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.1, }),
+                "start": ("FLOAT", {"default": 0.00, "min": 0, "max": 1, "step": 0.05}),
+                "end": ("FLOAT", {"default": 1.00, "min": 0, "max": 1, "step": 0.05}),
+            }
+        }
+    RETURN_TYPES = ("BASIC_PIPE",)
+    RETURN_NAMES = ("instantid_settings",)
+    FUNCTION = "get_instantid"
+
+    CATEGORY="JPS Nodes/Settings"
+
+    def get_instantid(self,ip_weight,cn_strength,noise,start,end):
+
+        instantid_settings = ip_weight,cn_strength,noise,start,end
+
+        return(instantid_settings,)
+
+#---------------------------------------------------------------------------------------------------------------------------------------------------#    
+
+class InstantID_Pipe:
+
+    def __init__(self):
+        pass
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "instantid_settings": ("BASIC_PIPE",),
+            }
+        }
+    RETURN_TYPES = ("FLOAT","FLOAT","FLOAT","FLOAT","FLOAT",)
+    RETURN_NAMES = ("ip_weight","cn_strength","noise","start","end",)
+    FUNCTION = "get_instantid"
+
+    CATEGORY="JPS Nodes/Pipes"
+
+    def get_instantid(self,instantid_settings):
+
+        ip_weight,cn_strength,noise,start,end = instantid_settings
+
+        return(ip_weight,cn_strength,noise,start,end)
+
+#---------------------------------------------------------------------------------------------------------------------------------------------------#
+    
+class ImagePrepare_Settings:
+
+    def __init__(self):
+        pass
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "offset_width": ("INT", { "default": 0, "min": -99, "max": 99, "step": 1, "display": "number" }),
+                "offset_height": ("INT", { "default": 0, "min": -99, "max": 99, "step": 1, "display": "number" }),
+                "crop_left": ("INT", { "default": 0, "min": 0, "max": 90, "step": 1, "display": "number" }),
+                "crop_right": ("INT", { "default": 0, "min": 0, "max": 90, "step": 1, "display": "number" }),
+                "crop_top": ("INT", { "default": 0, "min": 0, "max": 90, "step": 1, "display": "number" }),
+                "crop_bottom": ("INT", { "default": 0, "min": 0, "max": 90, "step": 1, "display": "number" }),
+                "padding_left": ("INT", { "default": 0, "min": 0, "max": 500, "step": 1, "display": "number" }),
+                "padding_right": ("INT", { "default": 0, "min": 0, "max": 500, "step": 1, "display": "number" }),
+                "padding_top": ("INT", { "default": 0, "min": 0, "max": 500, "step": 1, "display": "number" }),
+                "padding_bottom": ("INT", { "default": 0, "min": 0, "max": 500, "step": 1, "display": "number" }),
+                "interpolation": (["lanczos", "nearest", "bilinear", "bicubic", "area", "nearest-exact"],),
+                "sharpening": ("FLOAT", { "default": 0.0, "min": 0, "max": 1, "step": 0.05, "display": "number" }),
+            }
+        }
+    RETURN_TYPES = ("BASIC_PIPE",)
+    RETURN_NAMES = ("imageprepare_settings",)
+    FUNCTION = "get_imageprepare"
+
+    CATEGORY="JPS Nodes/Settings"
+
+    def get_imageprepare(self,offset_width,offset_height,crop_left,crop_right,crop_top,crop_bottom,padding_left,padding_right,padding_top,padding_bottom,interpolation,sharpening):
+
+        imageprepare_settings = offset_width,offset_height,crop_left,crop_right,crop_top,crop_bottom,padding_left,padding_right,padding_top,padding_bottom,interpolation,sharpening
+
+        return(imageprepare_settings,)
+
+#---------------------------------------------------------------------------------------------------------------------------------------------------#    
+
+class ImagePrepare_Pipe:
+
+    def __init__(self):
+        pass
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "imageprepare_settings": ("BASIC_PIPE",),
+            }
+        }
+    RETURN_TYPES = ("INT","INT","INT","INT","INT","INT","INT","INT","INT","INT",["lanczos", "nearest", "bilinear", "bicubic", "area", "nearest-exact"],"FLOAT",)
+    RETURN_NAMES = ("offset_width","offset_height","crop_left","crop_right","crop_top","crop_bottom","padding_left","padding_right","padding_top","padding_bottom","interpolation","sharpening",)
+    FUNCTION = "get_imageprepare"
+
+    CATEGORY="JPS Nodes/Pipes"
+
+    def get_imageprepare(self,imageprepare_settings):
+
+        offset_width,offset_height,crop_left,crop_right,crop_top,crop_bottom,padding_left,padding_right,padding_top,padding_bottom,interpolation,sharpening = imageprepare_settings
+
+        return(offset_width,offset_height,crop_left,crop_right,crop_top,crop_bottom,padding_left,padding_right,padding_top,padding_bottom,interpolation,sharpening)
+
+#---------------------------------------------------------------------------------------------------------------------------------------------------#
+
+class InstantIDSourcePrepare_Settings:
+
+    def __init__(self):
+        pass
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "resize_to": (["Resize to Target","Keep Size"],),
+                "offset_width": ("INT", { "default": 0, "min": -99, "max": 99, "step": 1, "display": "number" }),
+                "offset_height": ("INT", { "default": 0, "min": -99, "max": 99, "step": 1, "display": "number" }),
+                "crop_left": ("INT", { "default": 0, "min": 0, "max": 90, "step": 1, "display": "number" }),
+                "crop_right": ("INT", { "default": 0, "min": 0, "max": 90, "step": 1, "display": "number" }),
+                "crop_top": ("INT", { "default": 0, "min": 0, "max": 90, "step": 1, "display": "number" }),
+                "crop_bottom": ("INT", { "default": 0, "min": 0, "max": 90, "step": 1, "display": "number" }),
+                "interpolation": (["lanczos", "nearest", "bilinear", "bicubic", "area", "nearest-exact"],),
+                "sharpening": ("FLOAT", { "default": 0.0, "min": 0, "max": 1, "step": 0.05, "display": "number" }),
+                "flip": (["No", "X-Axis", "Y-Axis"],),                
+            }
+        }
+    RETURN_TYPES = ("BASIC_PIPE",)
+    RETURN_NAMES = ("imageprepare_settings",)
+    FUNCTION = "get_imageprepare"
+
+    CATEGORY="JPS Nodes/Settings"
+
+    def get_imageprepare(self,resize_to,offset_width,offset_height,crop_left,crop_right,crop_top,crop_bottom,interpolation,sharpening,flip):
+
+        resizeto = int (0)
+        if(resize_to == "Keep Size"):
+            resizeto = int(1)
+        elif(resize_to == "Resize to Target"):
+            resizeto = int(2)
+
+        imageprepare_settings = resizeto, offset_width,offset_height,crop_left,crop_right,crop_top,crop_bottom,interpolation,sharpening,flip
+
+        return(imageprepare_settings,)
+
+#---------------------------------------------------------------------------------------------------------------------------------------------------#    
+
+class InstantIDSourcePrepare_Pipe:
+
+    def __init__(self):
+        pass
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "imageprepare_settings": ("BASIC_PIPE",),
+            }
+        }
+    RETURN_TYPES = ("INT","INT","INT","INT","INT","INT","INT",["lanczos", "nearest", "bilinear", "bicubic", "area", "nearest-exact"],"FLOAT",["No", "X-Axis", "Y-Axis"],)
+    RETURN_NAMES = ("resize_to","offset_width","offset_height","crop_left","crop_right","crop_top","crop_bottom","interpolation","sharpening","flip",)
+    FUNCTION = "get_imageprepare"
+
+    CATEGORY="JPS Nodes/Pipes"
+
+    def get_imageprepare(self,imageprepare_settings):
+
+        resizeto,offset_width,offset_height,crop_left,crop_right,crop_top,crop_bottom,interpolation,sharpening,flip = imageprepare_settings
+
+        return(resizeto,offset_width,offset_height,crop_left,crop_right,crop_top,crop_bottom,interpolation,sharpening,flip)
+
+#---------------------------------------------------------------------------------------------------------------------------------------------------#
+
+class InstantIDPosePrepare_Settings:
+
+    def __init__(self):
+        pass
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "resize_to": (["Resize to Target","Resize to Source","Keep Size"],),
+                "offset_width": ("INT", { "default": 0, "min": -99, "max": 99, "step": 1, "display": "number" }),
+                "offset_height": ("INT", { "default": 0, "min": -99, "max": 99, "step": 1, "display": "number" }),
+                "crop_left": ("INT", { "default": 0, "min": 0, "max": 90, "step": 1, "display": "number" }),
+                "crop_right": ("INT", { "default": 0, "min": 0, "max": 90, "step": 1, "display": "number" }),
+                "crop_top": ("INT", { "default": 0, "min": 0, "max": 90, "step": 1, "display": "number" }),
+                "crop_bottom": ("INT", { "default": 0, "min": 0, "max": 90, "step": 1, "display": "number" }),
+                "padding_left": ("INT", { "default": 0, "min": 0, "max": 500, "step": 1, "display": "number" }),
+                "padding_right": ("INT", { "default": 0, "min": 0, "max": 500, "step": 1, "display": "number" }),
+                "padding_top": ("INT", { "default": 0, "min": 0, "max": 500, "step": 1, "display": "number" }),
+                "padding_bottom": ("INT", { "default": 0, "min": 0, "max": 500, "step": 1, "display": "number" }),
+                "interpolation": (["lanczos", "nearest", "bilinear", "bicubic", "area", "nearest-exact"],),
+                "sharpening": ("FLOAT", { "default": 0.0, "min": 0, "max": 1, "step": 0.05, "display": "number" }),
+                "flip": (["No", "X-Axis", "Y-Axis"],),      
+            }
+        }
+    RETURN_TYPES = ("BASIC_PIPE",)
+    RETURN_NAMES = ("imageprepare_settings",)
+    FUNCTION = "get_imageprepare"
+
+    CATEGORY="JPS Nodes/Settings"
+
+    def get_imageprepare(self,resize_to,offset_width,offset_height,crop_left,crop_right,crop_top,crop_bottom,padding_left,padding_right,padding_top,padding_bottom,interpolation,sharpening,flip):
+
+        resizeto = int (0)
+        if(resize_to == "Keep Size"):
+            resizeto = int(1)
+        elif(resize_to == "Resize to Target"):
+            resizeto = int(2)
+        elif(resize_to == "Resize to Source"):
+            resizeto = int(3)
+
+        imageprepare_settings = resizeto, offset_width,offset_height,crop_left,crop_right,crop_top,crop_bottom,padding_left,padding_right,padding_top,padding_bottom,interpolation,sharpening,flip
+
+        return(imageprepare_settings,)
+
+#---------------------------------------------------------------------------------------------------------------------------------------------------#    
+
+class InstantIDPosePrepare_Pipe:
+
+    def __init__(self):
+        pass
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "imageprepare_settings": ("BASIC_PIPE",),
+            }
+        }
+    RETURN_TYPES = ("INT","INT","INT","INT","INT","INT","INT","INT","INT","INT","INT",["lanczos", "nearest", "bilinear", "bicubic", "area", "nearest-exact"],"FLOAT",["No", "X-Axis", "Y-Axis"],)
+    RETURN_NAMES = ("resize_to","offset_width","offset_height","crop_left","crop_right","crop_top","crop_bottom","padding_left","padding_right","padding_top","padding_bottom","interpolation","sharpening","flip")
+    FUNCTION = "get_imageprepare"
+
+    CATEGORY="JPS Nodes/Pipes"
+
+    def get_imageprepare(self,imageprepare_settings):
+
+        resizeto,offset_width,offset_height,crop_left,crop_right,crop_top,crop_bottom,padding_left,padding_right,padding_top,padding_bottom,interpolation,sharpening,flip = imageprepare_settings
+
+        return(resizeto,offset_width,offset_height,crop_left,crop_right,crop_top,crop_bottom,padding_left,padding_right,padding_top,padding_bottom,interpolation,sharpening,flip)
+
+#---------------------------------------------------------------------------------------------------------------------------------------------------#
+
+class InstantIDMaskPrepare_Settings:
+
+    masktypes = ["No Mask","Mask Editor","Mask Editor (inverted)","Red from Image","Green from Image","Blue from Image"]        
+
+    def __init__(self):
+        pass
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "mask_type": (s.masktypes,),
+                "resize_to": (["Resize to Target","Resize to Source","Keep Size"],),
+                "resize_type": (["Crop","Stretch"],),
+                "offset_width": ("INT", { "default": 0, "min": -99, "max": 99, "step": 1, "display": "number" }),
+                "offset_height": ("INT", { "default": 0, "min": -99, "max": 99, "step": 1, "display": "number" }),
+                "crop_left": ("INT", { "default": 0, "min": 0, "max": 90, "step": 1, "display": "number" }),
+                "crop_right": ("INT", { "default": 0, "min": 0, "max": 90, "step": 1, "display": "number" }),
+                "crop_top": ("INT", { "default": 0, "min": 0, "max": 90, "step": 1, "display": "number" }),
+                "crop_bottom": ("INT", { "default": 0, "min": 0, "max": 90, "step": 1, "display": "number" }),
+                "padding_left": ("INT", { "default": 0, "min": 0, "max": 500, "step": 1, "display": "number" }),
+                "padding_right": ("INT", { "default": 0, "min": 0, "max": 500, "step": 1, "display": "number" }),
+                "padding_top": ("INT", { "default": 0, "min": 0, "max": 500, "step": 1, "display": "number" }),
+                "padding_bottom": ("INT", { "default": 0, "min": 0, "max": 500, "step": 1, "display": "number" }),
+                "interpolation": (["lanczos", "nearest", "bilinear", "bicubic", "area", "nearest-exact"],),
+                "sharpening": ("FLOAT", { "default": 0.0, "min": 0, "max": 1, "step": 0.05, "display": "number" }),
+            }
+        }
+    RETURN_TYPES = ("BASIC_PIPE",)
+    RETURN_NAMES = ("imageprepare_settings",)
+    FUNCTION = "get_imageprepare"
+
+    CATEGORY="JPS Nodes/Settings"
+
+    def get_imageprepare(self,mask_type,resize_to,resize_type,offset_width,offset_height,crop_left,crop_right,crop_top,crop_bottom,padding_left,padding_right,padding_top,padding_bottom,interpolation,sharpening):
+
+        resizeto = int (0)
+        if(resize_to == "Keep Size"):
+            resizeto = int(1)
+        elif(resize_to == "Resize to Target"):
+            resizeto = int(2)
+        elif(resize_to == "Resize to Source"):
+            resizeto = int(3)
+
+        resizetype = "Crop"
+        if(resize_type == "Stretch"):
+            resizetype = "Stretch"
+
+        masktype = int(0)
+        if(mask_type == "Mask Editor"):
+            masktype = int(1)
+        elif(mask_type == "Mask Editor (inverted)"):
+            masktype = int(2)
+        elif(mask_type == "Red from Image"):
+            masktype = int(3)
+        elif(mask_type == "Green from Image"):
+            masktype = int(4)
+        elif(mask_type == "Blue from Image"):
+            masktype = int(5)
+
+        imageprepare_settings = masktype, resizeto, resizetype, offset_width,offset_height,crop_left,crop_right,crop_top,crop_bottom,padding_left,padding_right,padding_top,padding_bottom,interpolation,sharpening
+
+        return(imageprepare_settings,)
+
+#---------------------------------------------------------------------------------------------------------------------------------------------------#    
+
+class InstantIDMaskPrepare_Pipe:
+
+    def __init__(self):
+        pass
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "imageprepare_settings": ("BASIC_PIPE",),
+            }
+        }
+    RETURN_TYPES = ("INT","INT",["Crop","Stretch"],"INT","INT","INT","INT","INT","INT","INT","INT","INT","INT",["lanczos", "nearest", "bilinear", "bicubic", "area", "nearest-exact"],"FLOAT",)
+    RETURN_NAMES = ("mask_type","resize_to","resize_type","offset_width","offset_height","crop_left","crop_right","crop_top","crop_bottom","padding_left","padding_right","padding_top","padding_bottom","interpolation","sharpening",)
+    FUNCTION = "get_imageprepare"
+
+    CATEGORY="JPS Nodes/Pipes"
+
+    def get_imageprepare(self,imageprepare_settings):
+
+        masktype,resizeto,resizetype,offset_width,offset_height,crop_left,crop_right,crop_top,crop_bottom,padding_left,padding_right,padding_top,padding_bottom,interpolation,sharpening = imageprepare_settings
+
+        return(masktype,resizeto,resizetype,offset_width,offset_height,crop_left,crop_right,crop_top,crop_bottom,padding_left,padding_right,padding_top,padding_bottom,interpolation,sharpening)
 
 #---------------------------------------------------------------------------------------------------------------------------------------------------#
 
@@ -2229,13 +2662,15 @@ class SDXL_Prompt_Styler:
         
         return {
             "required": {
-                "text_positive_g": ("STRING", {"default": "", "multiline": True}),
-                "text_positive_l": ("STRING", {"default": "", "multiline": True}),
-                "text_negative": ("STRING", {"default": "", "multiline": True}),
+                "text_positive_g": ("STRING", {"default": "", "multiline": True, "dynamicPrompts": True}),
+                "text_positive_l": ("STRING", {"default": "", "multiline": True, "dynamicPrompts": True}),
+                "text_negative": ("STRING", {"default": "", "multiline": True, "dynamicPrompts": True}),
                 "artist": ((artists), ),
                 "movie": ((movies), ),
                 "style": ((styles), ),
-                "universal_neg": (self.uni_neg,),
+                "fooocus_enhance": (self.uni_neg,),                
+                "fooocus_negative": (self.uni_neg,),
+                "universal_negative": (self.uni_neg,),
             },
         }
 
@@ -2244,7 +2679,7 @@ class SDXL_Prompt_Styler:
     FUNCTION = 'sdxlpromptstyler'
     CATEGORY = 'JPS Nodes/Style'
 
-    def sdxlpromptstyler(self, text_positive_g, text_positive_l, text_negative, artist, movie, style,universal_neg):
+    def sdxlpromptstyler(self, text_positive_g, text_positive_l, text_negative, artist, movie, style, fooocus_enhance, fooocus_negative, universal_negative):
         # Process and combine prompts in templates
         # The function replaces the positive prompt placeholder in the template,
         # and combines the negative prompt with the template's negative prompt, if they exist.
@@ -2295,7 +2730,19 @@ class SDXL_Prompt_Styler:
         else:
             text_pos_style = text_pos_g_style 
 
-        if(universal_neg == "ON"):
+        if(fooocus_enhance == "ON"):
+            if (text_neg_style != ''):
+                text_neg_style = text_neg_style + ', (worst quality, low quality, normal quality, lowres, low details, oversaturated, undersaturated, overexposed, underexposed, grayscale, bw, bad photo, bad photography, bad art:1.4), (watermark, signature, text font, username, error, logo, words, letters, digits, autograph, trademark, name:1.2), (blur, blurry, grainy), morbid, ugly, asymmetrical, mutated malformed, mutilated, poorly lit, bad shadow, draft, cropped, out of frame, cut off, censored, jpeg artifacts, out of focus, glitch, duplicate, (airbrushed, cartoon, anime, semi-realistic, cgi, render, blender, digital art, manga, amateur:1.3), (3D ,3D Game, 3D Game Scene, 3D Character:1.1), (bad hands, bad anatomy, bad body, bad face, bad teeth, bad arms, bad legs, deformities:1.3)'
+            else:
+                text_neg_style = '(worst quality, low quality, normal quality, lowres, low details, oversaturated, undersaturated, overexposed, underexposed, grayscale, bw, bad photo, bad photography, bad art:1.4), (watermark, signature, text font, username, error, logo, words, letters, digits, autograph, trademark, name:1.2), (blur, blurry, grainy), morbid, ugly, asymmetrical, mutated malformed, mutilated, poorly lit, bad shadow, draft, cropped, out of frame, cut off, censored, jpeg artifacts, out of focus, glitch, duplicate, (airbrushed, cartoon, anime, semi-realistic, cgi, render, blender, digital art, manga, amateur:1.3), (3D ,3D Game, 3D Game Scene, 3D Character:1.1), (bad hands, bad anatomy, bad body, bad face, bad teeth, bad arms, bad legs, deformities:1.3)'
+
+        if(fooocus_negative == "ON"):
+            if (text_neg_style != ''):
+                text_neg_style = text_neg_style + ', deformed, bad anatomy, disfigured, poorly drawn face, mutated, extra limb, ugly, poorly drawn hands, missing limb, floating limbs, disconnected limbs, disconnected head, malformed hands, long neck, mutated hands and fingers, bad hands, missing fingers, cropped, worst quality, low quality, mutation, poorly drawn, huge calf, bad hands, fused hand, missing hand, disappearing arms, disappearing thigh, disappearing calf, disappearing legs, missing fingers, fused fingers, abnormal eye proportion, Abnormal hands, abnormal legs, abnormal feet, abnormal fingers, drawing, painting, crayon, sketch, graphite, impressionist, noisy, blurry, soft, deformed, ugly, anime, cartoon, graphic, text, painting, crayon, graphite, abstract, glitch'
+            else:
+                text_neg_style = 'deformed, bad anatomy, disfigured, poorly drawn face, mutated, extra limb, ugly, poorly drawn hands, missing limb, floating limbs, disconnected limbs, disconnected head, malformed hands, long neck, mutated hands and fingers, bad hands, missing fingers, cropped, worst quality, low quality, mutation, poorly drawn, huge calf, bad hands, fused hand, missing hand, disappearing arms, disappearing thigh, disappearing calf, disappearing legs, missing fingers, fused fingers, abnormal eye proportion, Abnormal hands, abnormal legs, abnormal feet, abnormal fingers, drawing, painting, crayon, sketch, graphite, impressionist, noisy, blurry, soft, deformed, ugly, anime, cartoon, graphic, text, painting, crayon, graphite, abstract, glitch'
+
+        if(universal_negative == "ON"):
             if (text_neg_style != ''):
                 text_neg_style = text_neg_style + ', text, watermark, low-quality, signature, moire pattern, downsampling, aliasing, distorted, blurry, glossy, blur, jpeg artifacts, compression artifacts, poorly drawn, low-resolution, bad, distortion, twisted, excessive, exaggerated pose, exaggerated limbs, grainy, symmetrical, duplicate, error, pattern, beginner, pixelated, fake, hyper, glitch, overexposed, high-contrast, bad-contrast'
             else:
@@ -2490,6 +2937,433 @@ class Crop_Image_TargetSize:
 
 #---------------------------------------------------------------------------------------------------------------------------------------------------#    
 
+class Prepare_Image_Tiled_IPA:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "image": ("IMAGE",),
+                "target_w": ("INT", { "default": 0 , "min": 0, "step": 8, "display": "number" }),
+                "target_h": ("INT", { "default": 0 , "min": 0, "step": 8, "display": "number" }),                
+                "zoom": ("INT", {"default": 1.0, "min": 1, "max": 500, "step": 1}),
+                "offset_w": ("INT", { "default": 0, "min": -4096, "max": 4096, "step": 1, "display": "number" }),
+                "offset_h": ("INT", { "default": 0, "min": -4096, "max": 4096, "step": 1, "display": "number" }),
+                "interpolation": (["lanczos", "nearest", "bilinear", "bicubic", "area", "nearest-exact"],),
+                "sharpening": ("FLOAT", {"default": 0.0, "min": 0, "max": 1, "step": 0.05}),
+                "tile_short": ("INT", {"default": 2.0, "min": 1, "max": 5, "step": 1}),
+                "prepare_type": ("INT", {"default": 1, "min": 1, "max": 9, "step": 1}),                
+            }
+        }
+    
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("IMAGE",)
+    FUNCTION = "crop_targetsize"
+    CATEGORY = "JPS Nodes/Image"
+
+    def crop_targetsize(self, image, target_w, target_h, zoom, offset_w, offset_h, interpolation, sharpening,tile_short,prepare_type):
+        _, input_h, input_w, _ = image.shape
+
+        tilelength = tile_short * 224
+
+        #Direct Source
+        if prepare_type == 9:
+            copyimage = image
+
+        #Source_AR + Source_Res
+        if prepare_type == 4:
+            target_w = input_w
+            target_h = input_h
+
+        #Source_AR + Tile_Res
+        if prepare_type == 5:
+            target_w = input_w
+            target_h = input_h
+            prepare_type = 2
+
+        #Tile_AR + Source_Res
+        if prepare_type == 6:
+            target_w = input_w
+            target_h = input_h
+            prepare_type = 3
+
+        #Square_AR + Target_Res
+        if prepare_type == 7:
+            target_ar = target_w / target_h
+            if target_ar >= 1:
+                target_w = target_h
+            else:
+                target_h = target_w
+
+        #Square_AR + Tile_Res
+        if prepare_type == 8:
+            target_w = tilelength
+            target_h = tilelength
+
+        #Target_AR + Tile_Res
+        if prepare_type == 2:
+            target_ar = target_w / target_h
+            if target_ar >= 1:
+                target_h = tilelength
+                target_w = round(tilelength * target_ar)
+            else:
+                target_w = tilelength
+                target_h = round(tilelength / target_ar)
+
+        #Tile_AR + Target_Res
+        if prepare_type == 3:
+            target_ar = target_w / target_h
+            if target_ar >= 1:
+                target_h = tilelength
+                if target_ar < 1.5:
+                    target_w = tilelength
+                elif target_ar < 2:
+                    target_w = round(tilelength * 1.5)
+                elif target_ar < 2.5:
+                    target_w = round(tilelength * 2)
+                elif target_ar < 3:
+                    target_w = round(tilelength * 2.5)
+                elif target_ar < 3.5:
+                    target_w = round(tilelength * 3)
+                else:
+                    target_w = round(tilelength * target_ar)
+            else:
+                target_w = tilelength
+                target_ar  = target_h / target_w
+                if target_ar < 1.5:
+                    target_h = tilelength
+                elif target_ar < 2:
+                    target_h = round(tilelength * 1.5)
+                elif target_ar < 2.5:
+                    target_h = round(tilelength * 2)
+                elif target_ar < 3:
+                    target_h = round(tilelength * 2.5)
+                elif target_ar < 3.5:
+                    target_h = round(tilelength * 3)
+                else:
+                    target_h = round(tilelength * target_ar)
+
+        zoom = float(zoom / 100)
+
+        resize_needed_w = target_w / input_w
+        resize_needed_h = target_h / input_h
+
+        if resize_needed_w >= resize_needed_h:
+            min_zoom_factor = resize_needed_w
+        else:
+            min_zoom_factor = resize_needed_h
+
+        if zoom <= min_zoom_factor:
+            zoom_factor = min_zoom_factor
+#        elif zoom > min_zoom_factor and min_zoom_factor >=1:
+#            zoom_factor = zoom
+#        elif zoom > min_zoom_factor and min_zoom_factor < 1:
+#            zoom_factor = min_zoom_factor
+        else:
+            zoom_factor = zoom
+            
+        zoomed_w = round(input_w * zoom_factor)
+        zoomed_h = round(input_h * zoom_factor)
+
+        resized_image = image.permute([0,3,1,2])
+
+        if interpolation == "lanczos":
+            resized_image = comfy.utils.lanczos(resized_image, zoomed_w, zoomed_h)
+        else:
+            resized_image = F.interpolate(resized_image, size=(zoomed_h, zoomed_w), mode=interpolation)
+
+        resized_image = resized_image.permute([0,2,3,1])
+        
+        x0 = round((zoomed_w - target_w) / 2)
+        x1 = x0 + target_w
+        y0 = round((zoomed_h - target_h) / 2)
+        y1 = y0 + target_h
+
+        if x0 + offset_w + target_w < zoomed_w and offset_w > 0:
+            x0 = x0 + offset_w
+            x1 = x0 + target_w
+        elif x0 + offset_w + target_w >= zoomed_w and offset_w > 0:
+            x0 = zoomed_w - target_w 
+            x1 = zoomed_w
+        elif x0 + offset_w > 0 and offset_w < 0:
+                x0 = x0 + offset_w
+                x1 = x0 + target_w
+        elif x0 + offset_w <= 0 and offset_w < 0:
+                x0 = 0
+                x1 = target_w
+
+        if y0 + offset_h + target_h < zoomed_h and offset_h > 0:
+            y0 = y0 + offset_h
+            y1 = y0 + target_h
+        elif y0 + offset_h + target_h >= zoomed_h and offset_h > 0:
+            y0 = zoomed_h - target_h 
+            y1 = zoomed_h
+        elif y0 + offset_h > 0 and offset_h < 0:
+                y0 = y0 + offset_h
+                y1 = y0 + target_h
+        elif y0 + offset_h <= 0 and offset_h < 0:
+                y0 = 0
+                y1 = target_h
+
+        output_image = resized_image
+
+ #      print("x0: "+str(x0))
+ #      print("x1: "+str(x1))
+ #      print("y0: "+str(y0))
+ #      print("y1: "+str(y1))
+
+        if sharpening > 0:
+            output_image = contrast_adaptive_sharpening(output_image, sharpening)
+
+        output_image = output_image[:, y0:y1, x0:x1, :]
+
+        if prepare_type == 9:
+            output_image = copyimage
+
+        return(output_image,)
+
+#---------------------------------------------------------------------------------------------------------------------------------------------------#    
+
+class Prepare_Image:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "image": ("IMAGE",),
+                "target_w": ("INT", { "default": 1024 , "min": 0, "step": 8, "display": "number" }),
+                "target_h": ("INT", { "default": 1024 , "min": 0, "step": 8, "display": "number" }),
+                "crop_w_percent": ("INT", { "default": 100 , "min": 10, "max": 100, "step": 1, "display": "number" }),
+                "crop_h_percent": ("INT", { "default": 100 , "min": 10, "max": 100, "step": 1, "display": "number" }),
+                "offset_w": ("INT", { "default": 0, "min": -4096, "max": 4096, "step": 1, "display": "number" }),
+                "offset_h": ("INT", { "default": 0, "min": -4096, "max": 4096, "step": 1, "display": "number" }),
+                "interpolation": (["lanczos", "nearest", "bilinear", "bicubic", "area", "nearest-exact"],),
+                "sharpening": ("FLOAT", {"default": 0.0, "min": 0, "max": 1, "step": 0.05}),
+            }
+        }
+    
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("IMAGE",)
+    FUNCTION = "prepare_image"
+    CATEGORY = "JPS Nodes/Image"
+
+    def prepare_image(self, image, target_w, target_h, crop_w_percent, crop_h_percent, offset_w, offset_h, interpolation, sharpening, padding_left, padding_right, padding_top, padding_bottom):
+        _, input_h, input_w, _ = image.shape
+   
+        resize_needed_w = target_w / input_w / crop_w_percent * 100
+        resize_needed_h = target_h / input_h / crop_h_percent * 100
+
+        if resize_needed_w >= resize_needed_h:
+            min_zoom_factor = resize_needed_w
+        else:
+            min_zoom_factor = resize_needed_h
+
+        zoom_factor = min_zoom_factor
+
+        zoomed_w = round(input_w * zoom_factor)
+        zoomed_h = round(input_h * zoom_factor)
+
+        resized_image = image.permute([0,3,1,2])
+
+        if interpolation == "lanczos":
+            resized_image = comfy.utils.lanczos(resized_image, zoomed_w, zoomed_h)
+        else:
+            resized_image = F.interpolate(resized_image, size=(zoomed_h, zoomed_w), mode=interpolation)
+
+        resized_image = resized_image.permute([0,2,3,1])
+        
+        x0 = round((zoomed_w - target_w) / 2)
+        x1 = round(x0 + target_w)
+        y0 = round((zoomed_h - target_h) / 2)
+        y1 = round(y0 + target_h)
+
+        if x0 + offset_w + target_w < zoomed_w and offset_w > 0:
+            x0 = x0 + offset_w
+            x1 = x0 + target_w
+        elif x0 + offset_w + target_w >= zoomed_w and offset_w > 0:
+            x0 = zoomed_w - target_w 
+            x1 = zoomed_w
+        elif x0 + offset_w > 0 and offset_w < 0:
+                x0 = x0 + offset_w
+                x1 = x0 + target_w
+        elif x0 + offset_w <= 0 and offset_w < 0:
+                x0 = 0
+                x1 = target_w
+
+        if y0 + offset_h + target_h < zoomed_h and offset_h > 0:
+            y0 = y0 + offset_h
+            y1 = y0 + target_h
+        elif y0 + offset_h + target_h >= zoomed_h and offset_h > 0:
+            y0 = zoomed_h - target_h 
+            y1 = zoomed_h
+        elif y0 + offset_h > 0 and offset_h < 0:
+                y0 = y0 + offset_h
+                y1 = y0 + target_h
+        elif y0 + offset_h <= 0 and offset_h < 0:
+                y0 = 0
+                y1 = target_h
+
+        output_image = resized_image
+
+        if sharpening > 0:
+            output_image = contrast_adaptive_sharpening(output_image, sharpening)
+
+        output_image = output_image[:, y0:y1, x0:x1, :]
+
+        return(output_image,)
+
+#---------------------------------------------------------------------------------------------------------------------------------------------------#    
+
+class Prepare_Image_Plus:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "image": ("IMAGE",),
+                "target_w": ("INT", { "default": 1024 , "min": 0, "step": 8, "display": "number" }),
+                "target_h": ("INT", { "default": 1024 , "min": 0, "step": 8, "display": "number" }),
+                "offset_w": ("INT", { "default": 0, "min": -99, "max": 99, "step": 1, "display": "number" }),
+                "offset_h": ("INT", { "default": 0, "min": -99, "max": 99, "step": 1, "display": "number" }),
+                "crop_left": ("INT", { "default": 0, "min": 0, "max": 90, "step": 1, "display": "number" }),
+                "crop_right": ("INT", { "default": 0, "min": 0, "max": 90, "step": 1, "display": "number" }),
+                "crop_top": ("INT", { "default": 0, "min": 0, "max": 90, "step": 1, "display": "number" }),
+                "crop_bottom": ("INT", { "default": 0, "min": 0, "max": 90, "step": 1, "display": "number" }),
+                "padding_left": ("INT", { "default": 0, "min": 0, "max": 500, "step": 1, "display": "number" }),
+                "padding_right": ("INT", { "default": 0, "min": 0, "max": 500, "step": 1, "display": "number" }),
+                "padding_top": ("INT", { "default": 0, "min": 0, "max": 500, "step": 1, "display": "number" }),
+                "padding_bottom": ("INT", { "default": 0, "min": 0, "max": 500, "step": 1, "display": "number" }),
+                "interpolation": (["lanczos", "nearest", "bilinear", "bicubic", "area", "nearest-exact"],),
+                "sharpening": ("FLOAT", {"default": 0.0, "min": 0, "max": 1, "step": 0.05}),
+                "resize_type": (["Crop", "Stretch"],),
+                "flip": (["No", "X-Axis", "Y-Axis"],),
+            }
+        }
+    
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("IMAGE",)
+    FUNCTION = "prepare_image"
+    CATEGORY = "JPS Nodes/Image"
+
+    def prepare_image(self, image, target_w, target_h, offset_w, offset_h, crop_left, crop_right, crop_top, crop_bottom, padding_left, padding_right, padding_top, padding_bottom,interpolation, sharpening,resize_type,flip):
+        _, input_h, input_w, _ = image.shape
+
+        dim = ()
+        if flip == "X-Axis":
+            dim += (2,)
+            image = torch.flip(image, dim)            
+        if flip == "Y-Axis":
+            dim += (2,)
+            image = torch.flip(image, dim)
+
+        if crop_left + crop_right > 90:
+            crop_left = 90 / (crop_left + crop_right) * crop_left
+            crop_right = 90 / (crop_left + crop_right) * crop_right
+        
+        if crop_top + crop_bottom > 90:
+            crop_top = 90 / (crop_top + crop_bottom) * crop_top
+            crop_bottom = 90 / (crop_top + crop_bottom) * crop_bottom
+
+        left = int(input_w-(input_w * (100-crop_left) / 100))
+        right = int(input_w-(input_w * (100-crop_right) / 100))
+        top = int(input_h-(input_h * (100-crop_top) / 100))
+        bottom = int(input_h-(input_h * (100-crop_bottom) / 100))
+        
+        image = image[:, 0+top:input_h-bottom, 0+left:input_w-right, :]
+  
+        input_h = input_h - top - bottom
+        input_w = input_w - left - right
+  
+        left = int(((input_w * (100+padding_left) / 100) - input_w))
+        right = int(((input_w * (100+padding_right) / 100) - input_w))
+        top = int(((input_h * (100+padding_top) / 100) - input_h))
+        bottom = int(((input_h * (100+padding_bottom) / 100) - input_h))
+
+        pil_image = Image.fromarray(np.clip(255. * image.cpu().numpy().squeeze(), 0, 255).astype(np.uint8))
+        padded_image = Image.new("RGB", (pil_image.width + left + right, pil_image.height + top + bottom), color="black")
+        padded_image.paste(pil_image, (left, top))
+        image = torch.from_numpy(np.array(padded_image).astype(np.float32) / 255.0).unsqueeze(0)
+
+        input_h = input_h + top + bottom
+        input_w = input_w + left + right
+
+        if resize_type != "Stretch":
+
+            resize_needed_w = target_w / input_w 
+            resize_needed_h = target_h / input_h 
+
+            if resize_needed_w >= resize_needed_h:
+                min_zoom_factor = resize_needed_w
+            else:
+                min_zoom_factor = resize_needed_h
+
+            zoom_factor = min_zoom_factor
+
+            zoomed_w = round(input_w * zoom_factor)
+            zoomed_h = round(input_h * zoom_factor)
+
+            offset_w = int(zoomed_w / 100 * offset_w / 2)
+            offset_h = int(zoomed_h / 100 * offset_h / 2)
+
+            resized_image = image.permute([0,3,1,2])
+
+            if interpolation == "lanczos":
+                resized_image = comfy.utils.lanczos(resized_image, zoomed_w, zoomed_h)
+            else:
+                resized_image = F.interpolate(resized_image, size=(zoomed_h, zoomed_w), mode=interpolation)
+
+            resized_image = resized_image.permute([0,2,3,1])
+
+            x0 = round((zoomed_w - target_w) / 2)
+            x1 = round(x0 + target_w)
+            y0 = round((zoomed_h - target_h) / 2)
+            y1 = round(y0 + target_h)
+
+            if x0 + offset_w + target_w < zoomed_w and offset_w > 0:
+                x0 = x0 + offset_w
+                x1 = x0 + target_w
+            elif x0 + offset_w + target_w >= zoomed_w and offset_w > 0:
+                x0 = zoomed_w - target_w 
+                x1 = zoomed_w
+            elif x0 + offset_w > 0 and offset_w < 0:
+                    x0 = x0 + offset_w
+                    x1 = x0 + target_w
+            elif x0 + offset_w <= 0 and offset_w < 0:
+                    x0 = 0
+                    x1 = target_w
+
+            if y0 + offset_h + target_h < zoomed_h and offset_h > 0:
+                y0 = y0 + offset_h
+                y1 = y0 + target_h
+            elif y0 + offset_h + target_h >= zoomed_h and offset_h > 0:
+                y0 = zoomed_h - target_h 
+                y1 = zoomed_h
+            elif y0 + offset_h > 0 and offset_h < 0:
+                    y0 = y0 + offset_h
+                    y1 = y0 + target_h
+            elif y0 + offset_h <= 0 and offset_h < 0:
+                    y0 = 0
+                    y1 = target_h
+            output_image = resized_image
+
+            output_image = output_image[:, y0:y1, x0:x1, :]
+
+        else:
+
+            resized_image = image.permute([0,3,1,2])
+
+            if interpolation == "lanczos":
+                resized_image = comfy.utils.lanczos(resized_image, target_w, target_h)
+            else:
+                resized_image = F.interpolate(resized_image, size=(target_h, target_w), mode=interpolation)
+
+            resized_image = resized_image.permute([0,2,3,1])
+            output_image = resized_image
+
+        if sharpening > 0:
+            output_image = contrast_adaptive_sharpening(output_image, sharpening)
+
+        return(output_image,)
+
+#---------------------------------------------------------------------------------------------------------------------------------------------------#    
+
 class Save_Images_Plus:
     def __init__(self):
         self.output_dir = folder_paths.get_output_directory()
@@ -2529,7 +3403,7 @@ class Save_Images_Plus:
                     for x in extra_pnginfo:
                         metadata.add_text(x, json.dumps(extra_pnginfo[x]))
 
-            file = f"{filename}_{counter:03}.png"
+            file = f"{filename} {counter:03}.png"
             img.save(os.path.join(full_output_folder, file), pnginfo=metadata, compress_level=self.compress_level)
             results.append({
                 "filename": file,
@@ -2543,10 +3417,61 @@ class Save_Images_Plus:
 
 #---------------------------------------------------------------------------------------------------------------------------------------------------#    
 
+class CLIPTextEncodeSDXL_Plus:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {
+            "width": ("INT", {"default": 1024.0, "min": 0, "max": 12288}),
+            "height": ("INT", {"default": 1024.0, "min": 0, "max": 12288}),
+            "res_factor": ("INT", {"default": 4, "min": 1, "max": 8}),
+            "text_pos": ("STRING", {"multiline": True, "default": "", "dynamicPrompts": True}),
+            "text_neg": ("STRING", {"multiline": True, "default": "", "dynamicPrompts": True}),
+            "clip": ("CLIP", ),
+            }}
+    RETURN_TYPES = ("CONDITIONING","CONDITIONING",)
+    RETURN_NAMES = ("cond_pos", "cond_neg",)
+    FUNCTION = "execute"
+    CATEGORY = "JPS Nodes/Conditioning"
+
+    def execute(self, clip, width, height, res_factor, text_pos, text_neg):
+        crop_w = 0
+        crop_h = 0
+        width = width*res_factor
+        height = height*res_factor
+        target_width = width
+        target_height = height
+        text_g_pos = text_l_pos = text_pos
+        text_g_neg = text_l_neg = text_neg
+
+        tokens_pos = clip.tokenize(text_g_pos)
+        tokens_pos["l"] = clip.tokenize(text_l_pos)["l"]
+        if len(tokens_pos["l"]) != len(tokens_pos["g"]):
+            empty_pos = clip.tokenize("")
+            while len(tokens_pos["l"]) < len(tokens_pos["g"]):
+                tokens_pos["l"] += empty_pos["l"]
+            while len(tokens_pos["l"]) > len(tokens_pos["g"]):
+                tokens_pos["g"] += empty_pos["g"]
+        cond_pos, pooled_pos = clip.encode_from_tokens(tokens_pos, return_pooled=True)
+
+        tokens_neg = clip.tokenize(text_g_neg)
+        tokens_neg["l"] = clip.tokenize(text_l_neg)["l"]
+        if len(tokens_neg["l"]) != len(tokens_neg["g"]):
+            empty_neg = clip.tokenize("")
+            while len(tokens_neg["l"]) < len(tokens_neg["g"]):
+                tokens_neg["l"] += empty_neg["l"]
+            while len(tokens_pos["l"]) > len(tokens_pos["g"]):
+                tokens_neg["g"] += empty_neg["g"]
+        cond_neg, pooled_neg = clip.encode_from_tokens(tokens_neg, return_pooled=True)
+
+        return ([[cond_pos, {"pooled_output": pooled_pos, "width": width, "height": height, "crop_w": crop_w, "crop_h": crop_h, "target_width": target_width, "target_height": target_height}]], [[cond_neg, {"pooled_output": pooled_neg, "width": width, "height": height, "crop_w": crop_w, "crop_h": crop_h, "target_width": target_width, "target_height": target_height}]])
+
+#---------------------------------------------------------------------------------------------------------------------------------------------------#    
+
 NODE_CLASS_MAPPINGS = {
     "Lora Loader (JPS)": IO_Lora_Loader,
     "SDXL Resolutions (JPS)": SDXL_Resolutions,
     "SDXL Basic Settings (JPS)": SDXL_Basic_Settings,
+    "SDXL Settings (JPS)": SDXL_Settings,    
     "Generation TXT IMG Settings (JPS)": Generation_TXT_IMG_Settings,
     "Crop Image Settings (JPS)": CropImage_Settings,
     "ImageToImage Settings (JPS)": ImageToImage_Settings,    
@@ -2556,7 +3481,12 @@ NODE_CLASS_MAPPINGS = {
     "CtrlNet OpenPose Settings (JPS)": CtrlNet_OpenPose_Settings,
     "Revision Settings (JPS)": Revision_Settings,
     "IP Adapter Settings (JPS)": IP_Adapter_Settings,
-    "IP Adapter Single Settings (JPS)": IP_Adapter_Single_Settings,
+    "IP Adapter Tiled Settings (JPS)": IP_Adapter_Tiled_Settings,
+    "InstantID Settings (JPS)": InstantID_Settings,    
+    "Image Prepare Settings (JPS)": ImagePrepare_Settings,  
+    "InstantID Source Prepare Settings (JPS)": InstantIDSourcePrepare_Settings,
+    "InstantID Pose Prepare Settings (JPS)": InstantIDPosePrepare_Settings,
+    "InstantID Mask Prepare Settings (JPS)": InstantIDMaskPrepare_Settings,
     "Sampler Scheduler Settings (JPS)": Sampler_Scheduler_Settings,
     "Integer Switch (JPS)": Integer_Switch,
     "Image Switch (JPS)": Image_Switch,
@@ -2570,6 +3500,7 @@ NODE_CLASS_MAPPINGS = {
     "Disable Enable Switch (JPS)": Disable_Enable_Switch,
     "Enable Disable Switch (JPS)": Enable_Disable_Switch,
     "SDXL Basic Settings Pipe (JPS)": SDXL_Basic_Settings_Pipe,
+    "SDXL Settings Pipe (JPS)": SDXL_Settings_Pipe,
     "Crop Image Pipe (JPS)": CropImage_Pipe,
     "ImageToImage Pipe (JPS)": ImageToImage_Pipe,
     "CtrlNet CannyEdge Pipe (JPS)": CtrlNet_CannyEdge_Pipe,
@@ -2577,7 +3508,12 @@ NODE_CLASS_MAPPINGS = {
     "CtrlNet MiDaS Pipe (JPS)": CtrlNet_MiDaS_Pipe,
     "CtrlNet OpenPose Pipe (JPS)": CtrlNet_OpenPose_Pipe,    
     "IP Adapter Settings Pipe (JPS)": IP_Adapter_Settings_Pipe,
-    "IP Adapter Single Settings Pipe (JPS)": IP_Adapter_Single_Settings_Pipe,
+    "IP Adapter Tiled Settings Pipe (JPS)": IP_Adapter_Tiled_Settings_Pipe,
+    "InstantID Pipe (JPS)": InstantID_Pipe,
+    "Image Prepare Pipe (JPS)": ImagePrepare_Pipe,    
+    "InstantID Source Prepare Pipe (JPS)": InstantIDSourcePrepare_Pipe,    
+    "InstantID Pose Prepare Pipe (JPS)": InstantIDPosePrepare_Pipe,
+    "InstantID Mask Prepare Pipe (JPS)": InstantIDMaskPrepare_Pipe,
     "Revision Settings Pipe (JPS)": Revision_Settings_Pipe,
     "SDXL Fundamentals MultiPipe (JPS)": SDXL_Fundamentals_MultiPipe,
     "Images Masks MultiPipe (JPS)": Images_Masks_MultiPipe,
@@ -2593,9 +3529,15 @@ NODE_CLASS_MAPPINGS = {
     "Get Image Size (JPS)": Get_Image_Size,
     "Crop Image Square (JPS)": Crop_Image_Square,
     "Crop Image TargetSize (JPS)": Crop_Image_TargetSize,
+    "Prepare Image (JPS)": Prepare_Image,
+    "Prepare Image Plus (JPS)": Prepare_Image_Plus,
+    "Prepare Image Tiled IPA (JPS)": Prepare_Image_Tiled_IPA,
     "SDXL Prompt Styler (JPS)": SDXL_Prompt_Styler,
     "SDXL Prompt Handling (JPS)": SDXL_Prompt_Handling,
     "SDXL Prompt Handling Plus (JPS)": SDXL_Prompt_Handling_Plus,
     "Text Prompt (JPS)": Text_Prompt,
+    "Text Prompt Combo (JPS)": Text_Prompt_Combo,    
     "Save Images Plus (JPS)": Save_Images_Plus,
+    "CLIPTextEncode SDXL Plus (JPS)": CLIPTextEncodeSDXL_Plus,
+    "Time Seed (JPS)": Time_Seed,
 }
